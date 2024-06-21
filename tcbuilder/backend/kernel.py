@@ -54,9 +54,9 @@ def build_module(src_dir, linux_src, src_mod_dir, image_major_version,
     with open(config, 'r') as file:
         config_lines = file.read()
 
-    if re.search("CONFIG_ARM=y", config_lines, re.MULTILINE):
-        arch = "arm"
-    elif re.search("CONFIG_ARM64=y", config_lines, re.MULTILINE):
+    # if re.search("CONFIG_ARM=y", config_lines, re.MULTILINE):
+    #     arch = "arm"
+    if re.search("CONFIG_ARM64=y", config_lines, re.MULTILINE):
         arch = "arm64"
     else:
         assert False, "Architecture could not be determined from .config"
