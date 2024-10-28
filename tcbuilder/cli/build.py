@@ -398,12 +398,26 @@ def handle_easy_installer_output(props, storage_dir, union_params):
 def handle_bundle_common(
         storage_dir,
         bundle_props,
-        is_compressed_tar=True
+        compress_tar=True
     ):
-    """Handle the common steps of the bundle and combine for output generation."""
+    """Handle the common steps of the bundle and combine for output generation.
+
+    :param storage_dir: Absolute path of storage directory. This is a required
+                        keyword argument.
+    :param bundle_props: Dictionary holding the data of the bundle section.
+    :param compress_tar: Optional argument that specifies if the docker bundle
+                         tarfile should be compressed or not. Only applies if
+                         using 'compose-file'. It is ignored when using 'dir'.
+    :returns:
+        bundle_dir: Bundle directory path as a string, or None if bundling fails.
+        is_tmp_dir: Boolean that indicates if bundle_dir is a temporary directory or not.
+    """
 
     if "dir" in bundle_props:
-        return bundle_props["dir"]
+        bundle_dir = bundle_props["dir"]
+        if os.path.exists(bundle_dir):
+            return bundle_dir, False
+        raise TorizonCoreBuilderError(f"No such directory: {bundle_dir}")
 
     if "compose-file" in bundle_props:
         # Download bundle to user's directory - review (TODO).
@@ -443,28 +457,29 @@ def handle_bundle_common(
                 "compose_file": bundle_props["compose-file"],
                 "host_workdir": common.get_host_workdir()[0],
                 "use_host_docker": False,
-                "output_filename": f"{common.DOCKER_BUNDLE_TARNAME}.xz" if is_compressed_tar
+                "output_filename": f"{common.DOCKER_BUNDLE_TARNAME}.xz" if compress_tar
                                    else common.DOCKER_BUNDLE_TARNAME,
                 "keep_double_dollar_sign": bundle_props.get("keep-double-dollar-sign", False),
                 "platform": platform
             }
             download_containers_by_compose_file(**download_params)
 
-            return bundle_dir
+            return bundle_dir, True
 
         except:
             raise TorizonCoreBuilderError(
                 "Error trying to bundle Docker containers"
             )
 
-    return None
+    return None, False
 
 
 def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
     """Handle the bundle and combine steps of the output generation."""
 
+    bundle_dir = None
     try:
-        bundle_dir = handle_bundle_common(
+        bundle_dir, is_tmp_dir = handle_bundle_common(
             storage_dir,
             bundle_props
         )
@@ -483,7 +498,7 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
         comb_be.combine_tezi_image(**combine_params)
 
     finally:
-        if bundle_dir is not None and os.path.exists(bundle_dir):
+        if bundle_dir is not None and is_tmp_dir:
             log.debug(f"Removing temporary bundle directory {bundle_dir}")
             shutil.rmtree(bundle_dir)
 
@@ -497,11 +512,12 @@ def handle_raw_image_bundle_output(
     ):
     """Handle the bundle and combine steps of the output generation."""
 
+    bundle_dir = None
     try:
-        bundle_dir = handle_bundle_common(
+        bundle_dir, is_tmp_dir = handle_bundle_common(
             storage_dir,
             bundle_props,
-            is_compressed_tar=False
+            compress_tar=False
         )
 
         if bundle_dir is None:
@@ -521,7 +537,7 @@ def handle_raw_image_bundle_output(
         comb_be.combine_raw_image(**combine_params)
 
     finally:
-        if bundle_dir is not None and os.path.exists(bundle_dir):
+        if bundle_dir is not None and is_tmp_dir:
             log.debug(f"Removing temporary bundle directory {bundle_dir}")
             shutil.rmtree(bundle_dir)
 
